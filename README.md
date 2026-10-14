@@ -3,7 +3,7 @@
 An interactive browser simulation of our Arduino Uno based underground cable fault detector.
 Selected in the **top 50 of the AIoT Challenge 2026**.
 
-**Live demo:** https://YOUR-USERNAME.github.io/cable-fault-twin/
+**Live demo:**  https://pratikgawate00.github.io/cable-fault-detection-and-mapping-system/
 
 ## What you can do
 
