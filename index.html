@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cable Fault Digital Twin · Group 02</title>
+<meta name="description" content="Interactive digital twin of the Smart Underground Cable Fault Detection System (Arduino Uno + IoT + AI) by Group 02, ECE, MIT-ADT University. AIoT Challenge 2026.">
+<meta property="og:title" content="Underground Cable Fault Detector · Digital Twin">
+<meta property="og:description" content="Close a fault switch and watch the relays scan, the Arduino measure, the IoT dashboard update and the AI layer react.">
+<meta name="theme-color" content="#1d5c86">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Semi+Condensed:wght@500;600;700&family=VT323&display=swap">
+<style>
+/* Layout: utility control-room console — cable bay schematic on the left, controller / IoT / AI stacked on the right */
+:root {
+  --bg: #e9edf1;
+  --panel: #fbfcfd;
+  --panel-2: #f1f4f7;
+  --ink: #18212b;
+  --muted: #586575;
+  --rule: #d3dae2;
+  --accent: #1d5c86;
+  --ph-r: #d23b2f;
+  --ph-y: #d4a106;
+  --ph-y-ink: #8a6800;
+  --ph-b: #2a5fc4;
+  --ok: #2f8a57;
+  --warn: #c06f00;
+  --crit: #c4262b;
+  --ok-bg: #e3f2e9;
+  --warn-bg: #fbefdc;
+  --crit-bg: #fbe4e3;
+  --lcd-bg: #a3c43f;
+  --lcd-ink: #1c2a09;
+  --lcd-frame: #2b3440;
+  --wire: #2d3946;
+  --f-display: "Saira Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --f-lcd: "VT323", "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141a; --panel: #161d25; --panel-2: #1c252f; --ink: #e4eaf0; --muted: #94a2b2; --rule: #2b3643;
+    --accent: #63aee0; --ph-r: #ff6a5c; --ph-y: #f0c234; --ph-y-ink: #f0c234; --ph-b: #6b9cf5;
+    --ok: #4cc07f; --warn: #f0a33c; --crit: #ff6b6b; --ok-bg: #16301f; --warn-bg: #33250f; --crit-bg: #3a1a1a;
+    --lcd-bg: #8fb036; --lcd-ink: #17230a; --lcd-frame: #0b0f14; --wire: #b8c4d1;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141a; --panel: #161d25; --panel-2: #1c252f; --ink: #e4eaf0; --muted: #94a2b2; --rule: #2b3643;
+  --accent: #63aee0; --ph-r: #ff6a5c; --ph-y: #f0c234; --ph-y-ink: #f0c234; --ph-b: #6b9cf5;
+  --ok: #4cc07f; --warn: #f0a33c; --crit: #ff6b6b; --ok-bg: #16301f; --warn-bg: #33250f; --crit-bg: #3a1a1a;
+  --lcd-bg: #8fb036; --lcd-ink: #17230a; --lcd-frame: #0b0f14; --wire: #b8c4d1;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* header */
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+header.top h1 { font-size: clamp(26px, 3.6vw, 38px); font-weight: 700; line-height: 1.05; }
+header.top p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.scan-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--panel); font-family: var(--f-mono); font-size: 12px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
+.dot.blink { animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+
+/* scenario bar */
+.scenarios { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scenarios .eyebrow { margin-right: 4px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.chip { border: 1px solid var(--rule); background: var(--panel); border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 500; }
+.chip:hover { border-color: var(--accent); }
+.chip.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* main grid */
+.grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 980px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.panel-head h2 { font-size: 20px; font-weight: 600; }
+.panel-head .eyebrow { overflow-wrap: anywhere; }
+
+/* schematic */
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#bay { display: block; width: 100%; min-width: 660px; height: auto; }
+#bay text { font-family: var(--f-mono); fill: var(--ink); }
+#bay .lbl { font-size: 11px; fill: var(--muted); }
+#bay .wire { stroke: var(--wire); stroke-width: 2; fill: none; }
+#bay .res { fill: var(--panel); stroke-width: 2; }
+#bay .res-t { font-size: 10px; text-anchor: middle; }
+#bay .flow { fill: none; stroke: var(--warn); stroke-width: 4; stroke-dasharray: 6 8; stroke-linecap: round; opacity: 0; }
+#bay .flow.on { opacity: 1; animation: flow .6s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -14; } }
+#bay .sw { cursor: pointer; }
+#bay .sw .hit { fill: transparent; }
+#bay .sw:hover .hit { fill: var(--panel-2); }
+#bay .sw .blade { stroke: var(--wire); stroke-width: 2.5; stroke-linecap: round; transition: transform .15s ease; }
+#bay .sw.closed .blade { stroke: var(--crit); }
+#bay .sw .leak { stroke: var(--warn); stroke-width: 3; stroke-dasharray: 3 3; opacity: 0; }
+#bay .sw.leaking .leak { opacity: 1; }
+#bay .relay .blade { stroke: var(--wire); stroke-width: 2.5; stroke-linecap: round; transition: transform .15s ease; }
+#bay .relay.on .blade { stroke: var(--ok); }
+#bay .relay-t { font-size: 10px; fill: var(--muted); }
+#bay .relay.on .relay-t { fill: var(--ok); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw-key { width: 18px; height: 3px; background: var(--crit); display: inline-block; }
+.lk-key { width: 18px; border-top: 3px dashed var(--warn); display: inline-block; }
+.fl-key { width: 18px; border-top: 3px dotted var(--warn); display: inline-block; }
+
+/* fault panel */
+.faults { display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)); gap: 6px; align-items: center; margin-top: 14px; }
+.faults .row-l { font-family: var(--f-display); font-weight: 600; font-size: 14px; padding-right: 6px; }
+.fbtn { border: 1px solid var(--rule); background: var(--panel-2); border-radius: 6px; padding: 8px 4px; font-family: var(--f-mono); font-size: 12.5px; }
+.fbtn[aria-pressed="true"] { background: var(--crit-bg); border-color: var(--crit); color: var(--crit); font-weight: 600; }
+.fbtn.ageing { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.faults .hdr { font-size: 11px; color: var(--muted); text-align: center; font-family: var(--f-mono); }
+
+/* controller */
+.ctrl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+@media (max-width: 520px) { .ctrl { grid-template-columns: minmax(0, 1fr); } }
+.lcd { background: var(--lcd-frame); border-radius: 8px; padding: 10px; max-width: 100%; }
+.lcd-screen { background: var(--lcd-bg); border-radius: 3px; padding: 6px 10px; font-family: var(--f-lcd); color: var(--lcd-ink); font-size: clamp(22px, 3.2vw, 30px); line-height: 1.05; white-space: pre; overflow: hidden; box-shadow: inset 0 0 0 2px rgba(0,0,0,.12); }
+.hw { display: flex; gap: 14px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
+.led { display: grid; justify-items: center; gap: 4px; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.led i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid currentColor; display: block; opacity: .35; }
+.led.on i { opacity: 1; background: currentColor; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 25%, transparent); }
+.led.r { color: var(--ph-r); } .led.y { color: var(--ph-y); } .led.b { color: var(--ph-b); }
+.led span { color: var(--muted); }
+.buzz { display: grid; justify-items: center; gap: 4px; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.buzz b { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--muted); display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--muted); }
+.buzz.on b { border-color: var(--crit); color: var(--crit); background: var(--crit-bg); }
+.readouts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.ro { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.ro .k { font-size: 11px; color: var(--muted); font-family: var(--f-mono); letter-spacing: .06em; text-transform: uppercase; }
+.ro .v { font-family: var(--f-mono); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* iot dashboard */
+.iot-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 999px; padding: 4px 10px 4px 4px; background: var(--panel-2); font-size: 12.5px; }
+.toggle .knob { width: 34px; height: 20px; border-radius: 999px; background: var(--rule); position: relative; transition: background .15s; }
+.toggle .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--panel); transition: transform .15s; }
+.toggle[aria-pressed="true"] .knob { background: var(--ok); }
+.toggle[aria-pressed="true"] .knob::after { transform: translateX(14px); }
+.lines { display: grid; gap: 8px; }
+.lrow { display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px 10px 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); }
+.lrow .stripe { align-self: stretch; border-radius: 8px 0 0 8px; }
+.lrow .nm { font-weight: 600; font-family: var(--f-display); font-size: 15px; }
+.lrow .sub { font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.state { font-family: var(--f-mono); font-size: 12.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+.state.ok { background: var(--ok-bg); color: var(--ok); }
+.state.crit { background: var(--crit-bg); color: var(--crit); }
+.state.warn { background: var(--warn-bg); color: var(--warn); }
+.state.off { background: var(--panel-2); color: var(--muted); }
+.gauge-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; align-items: center; margin-top: 12px; }
+@media (max-width: 420px) { .gauge-row { grid-template-columns: minmax(0, 1fr); } }
+#gauge { width: 160px; max-width: 100%; height: auto; display: block; }
+#gauge text { font-family: var(--f-mono); fill: var(--muted); font-size: 9px; }
+#gauge .val { fill: var(--ink); font-size: 18px; font-weight: 600; }
+.offline-note { font-size: 12.5px; color: var(--muted); }
+
+/* ai */
+.ai-cards { display: grid; gap: 8px; }
+.ai-card { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; background: var(--panel); }
+.ai-card.warn { border-color: var(--warn); background: var(--warn-bg); }
+.ai-card.crit { border-color: var(--crit); background: var(--crit-bg); }
+.ai-card .t { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.ai-card .t b { font-family: var(--f-display); font-size: 15px; }
+.ai-card .msg { font-size: 13px; }
+.conf { height: 5px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+.conf i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.ageing-ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
+select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+.lead { font-family: var(--f-mono); font-size: 13px; color: var(--ok); font-weight: 600; }
+
+/* feed */
+.feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.feed li { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.feed time { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+.tag { font-family: var(--f-mono); font-size: 10.5px; padding: 1px 6px; border-radius: 4px; letter-spacing: .05em; }
+.tag.iot { background: var(--panel-2); color: var(--accent); border: 1px solid var(--rule); }
+.tag.ai { background: var(--warn-bg); color: var(--warn); }
+.feed .empty { color: var(--muted); display: block; border: 0; }
+footer { color: var(--muted); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  #bay .flow.on, .dot.blink { animation: none; }
+  #bay .sw .blade, #bay .relay .blade, .toggle .knob::after { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Group 02 · ECE, MIT-ADT University · AIoT Challenge 2026</div>
+      <h1>Underground Cable Fault Detector</h1>
+      <p>A live digital twin of the Arduino Uno system. Close a fault switch on any phase line and watch the relays scan, the Uno measure A0, the IoT dashboard update and the AI layer react.</p>
+    </div>
+    <div class="scan-pill" id="scanPill"><span class="dot blink"></span><span id="scanText">Scanning R line</span></div>
+  </header>
+
+  <div class="scenarios" role="group" aria-label="Demo scenarios">
+    <span class="eyebrow">Try a scenario</span>
+    <button class="chip" id="scClear" type="button">All lines healthy</button>
+    <button class="chip" id="scY4" type="button">Yellow fault at 4 km</button>
+    <button class="chip" id="scTwo" type="button">Red 2 km + Blue 8 km</button>
+    <button class="chip primary" id="scAge" type="button">Insulation ageing on Blue (AI demo)</button>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+      <section class="panel" aria-labelledby="bayTitle">
+        <div class="panel-head">
+          <h2 id="bayTitle">Cable bay</h2>
+          <span class="eyebrow">3 phase lines · 4 × 100 Ω sections · 2 km each</span>
+        </div>
+        <div class="scroll-x"><svg id="bay" viewBox="0 0 920 410" role="img" aria-label="Schematic of three cable lines with relays, resistors and fault switches"></svg></div>
+        <div class="legend">
+          <span><i class="sw-key"></i>Fault switch closed (short to ground)</span>
+          <span><i class="lk-key"></i>Insulation leak (ageing)</span>
+          <span><i class="fl-key"></i>Fault current while the relay is on</span>
+        </div>
+        <div class="faults" id="faultGrid" aria-label="Fault switches">
+          <span></span><span class="hdr">2 km</span><span class="hdr">4 km</span><span class="hdr">6 km</span><span class="hdr">8 km</span>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="ctrlTitle">
+        <div class="panel-head">
+          <h2 id="ctrlTitle">Arduino Uno controller</h2>
+          <span class="eyebrow">Pins 8 · 9 · 10 → ULN2003 → relays</span>
+        </div>
+        <div class="ctrl">
+          <div class="lcd"><div class="lcd-screen" id="lcd" aria-live="polite">R:NF    Y:4KM
+B:NF    IoT:ON </div></div>
+          <div class="hw">
+            <div class="led r" id="ledR"><i></i><span>R · D8</span></div>
+            <div class="led y" id="ledY"><i></i><span>Y · D9</span></div>
+            <div class="led b" id="ledB"><i></i><span>B · D10</span></div>
+            <div class="buzz" id="buzz"><b>BZ</b><span>D13</span></div>
+          </div>
+        </div>
+        <div class="readouts">
+          <div class="ro"><div class="k">Line on test</div><div class="v" id="roLine">R</div></div>
+          <div class="ro"><div class="k">A0 (0–1023)</div><div class="v" id="roAdc">1023</div></div>
+          <div class="ro"><div class="k">A0 voltage</div><div class="v" id="roV">5.00 V</div></div>
+        </div>
+        <p class="note">Voltage divider: V(A0) = 5 V × R<sub>cable</sub> / (1 kΩ + R<sub>cable</sub>). No fault reads 5 V; a nearer fault reads lower.</p>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" aria-labelledby="iotTitle">
+        <div class="panel-head">
+          <h2 id="iotTitle">IoT dashboard</h2>
+          <button class="toggle" id="bridge" type="button" aria-pressed="true"><span class="knob"></span><span id="bridgeTxt">USB bridge online</span></button>
+        </div>
+        <div class="lines" id="iotLines"></div>
+        <div class="gauge-row">
+          <svg id="gauge" viewBox="0 0 160 100" role="img" aria-label="A0 voltage gauge">
+            <path d="M15 85 A65 65 0 0 1 145 85" fill="none" stroke="var(--rule)" stroke-width="12" stroke-linecap="round" pathLength="100"></path>
+            <path id="gArc" d="M15 85 A65 65 0 0 1 145 85" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"></path>
+            <text x="10" y="99">0 V</text><text x="150" y="99" text-anchor="end">5 V</text>
+            <text class="val" id="gVal" x="80" y="78" text-anchor="middle">5.00 V</text>
+          </svg>
+          <div>
+            <div class="eyebrow">Last reading</div>
+            <div id="gLine" style="font-family:var(--f-display);font-size:17px;font-weight:600">Red line · healthy</div>
+            <div class="offline-note" id="offNote">Data arrives through the Uno's USB cable and the laptop bridge.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="aiTitle">
+        <div class="panel-head">
+          <h2 id="aiTitle">AI layer</h2>
+          <span class="eyebrow">Fault classifier + early warning</span>
+        </div>
+        <div class="ai-cards" id="aiCards"></div>
+        <div class="ageing-ctl">
+          <label class="eyebrow" for="ageLine">Age insulation</label>
+          <select id="ageLine"><option value="0">Red</option><option value="1">Yellow</option><option value="2" selected>Blue</option></select>
+          <select id="ageKm" aria-label="Location"><option value="0">2 km</option><option value="1">4 km</option><option value="2" selected>6 km</option><option value="3">8 km</option></select>
+          <button class="chip" id="ageBtn" type="button">Start ageing</button>
+        </div>
+        <p class="note">Ageing is sped up: 1 second here stands for about 1 day of insulation wear. The fixed thresholds only react once the cable is fully shorted; the AI watches the slow voltage drift before that.</p>
+        <p class="lead" id="leadTime" hidden></p>
+      </section>
+
+      <section class="panel" aria-labelledby="feedTitle">
+        <div class="panel-head">
+          <h2 id="feedTitle">Alerts</h2>
+          <button class="chip" id="soundBtn" type="button" aria-pressed="false">Buzzer sound: off</button>
+        </div>
+        <ul class="feed" id="feed"><li class="empty">No alerts yet.</li></ul>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <span>Arduino Uno · ULN2003 · 3 × 12 V relays · 16×2 LCD · R17 = 1 kΩ · 100 Ω per 2 km</span>
+    <span>Simulation of the Group 02 prototype; readings include ±2 counts of ADC noise.</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const LINES = [
+    { tag: 'R', name: 'Red', color: 'var(--ph-r)', ink: 'var(--ph-r)', relay: 'RL1', pin: 8 },
+    { tag: 'Y', name: 'Yellow', color: 'var(--ph-y)', ink: 'var(--ph-y-ink)', relay: 'RL2', pin: 9 },
+    { tag: 'B', name: 'Blue', color: 'var(--ph-b)', ink: 'var(--ph-b)', relay: 'RL3', pin: 10 }
+  ];
+  const KM = [2, 4, 6, 8];
+  const R17 = 1000, RSEC = 100;
+  const EXPECTED = KM.map((k, i) => 1023 * (RSEC * (i + 1)) / (R17 + RSEC * (i + 1)));
+  const INF = Infinity;
+
+  const S = {
+    shunt: [[INF, INF, INF, INF], [INF, INF, INF, INF], [INF, INF, INF, INF]],
+    ageing: null,
+    current: 0, relayOn: false,
+    adc: [1023, 1023, 1023], km: [0, 0, 0], measured: [false, false, false],
+    sentKm: [-1, -1, -1],
+    bridge: true, sound: false,
+    hist: [[], [], []],
+    aiWarnAt: [null, null, null], thrAt: [null, null, null], aiState: ['ok', 'ok', 'ok'],
+    lastSync: null
+  };
+
+  // ---------- physics ----------
+  const par = (a, b) => (a === INF ? b : b === INF ? a : (a === 0 || b === 0) ? 0 : a * b / (a + b));
+  function rin(l) {
+    let z = INF;
+    for (let j = 3; j >= 0; j--) {
+      const beyond = j === 3 ? INF : RSEC + z;
+      z = par(S.shunt[l][j], beyond);
+    }
+    return z === INF ? INF : RSEC + z;
+  }
+  const volts = (r) => (r === INF ? 5 : 5 * r / (R17 + r));
+  function readAdc(l) {
+    const v = volts(rin(l));
+    const n = Math.round((Math.random() * 4) - 2);
+    return Math.max(0, Math.min(1023, Math.round(v / 5 * 1023) + n));
+  }
+  // same thresholds as the Uno code
+  function thresholdKm(adc) {
+    if (adc > 650) return 0;
+    if (adc < 132) return 2;
+    if (adc < 203) return 4;
+    if (adc < 264) return 6;
+    return 8;
+  }
+
+  // ---------- AI layer ----------
+  function classify(l) {
+    const adc = S.adc[l];
+    if (adc > 1000) return { kind: 'ok', conf: 0.99 };
+    if (adc > 650) {
+      const v = adc / 1023 * 5;
+      const leak = R17 * v / (5 - v);
+      return { kind: 'warn', leak };
+    }
+    let best = 0, d = 1e9;
+    EXPECTED.forEach((e, i) => { const dd = Math.abs(adc - e); if (dd < d) { d = dd; best = i; } });
+    const conf = Math.exp(-Math.pow(d / 7, 2));
+    const recent = S.hist[l].slice(-3).map(p => p.adc);
+    const moving = recent.length >= 2 && (Math.max(...recent) - Math.min(...recent)) > 8;
+    if (conf > 0.55 && !moving) return { kind: 'fault', km: KM[best], conf };
+    if (moving) { const v2 = adc / 1023 * 5; return { kind: 'hires', path: R17 * v2 / (5 - v2), conf: Math.min(conf, 0.3), moving: true }; }
+    const v = adc / 1023 * 5;
+    return { kind: 'hires', path: R17 * v / (5 - v), conf };
+  }
+  function predictDays(l) {
+    const h = S.hist[l].filter(p => p.r !== INF && p.r > 0).slice(-6);
+    if (h.length < 3) return null;
+    const xs = h.map(p => p.t), ys = h.map(p => Math.log(p.r));
+    const mx = xs.reduce((a, b) => a + b) / xs.length, my = ys.reduce((a, b) => a + b) / ys.length;
+    let num = 0, den = 0;
+    xs.forEach((x, i) => { num += (x - mx) * (ys[i] - my); den += (x - mx) * (x - mx); });
+    const slope = den ? num / den : 0;
+    if (slope >= -1e-4) return null;
+    const t = (Math.log(500) - ys[ys.length - 1]) / slope;
+    return t > 0 ? t / 1000 : 0;
+  }
+
+  // ---------- schematic ----------
+  const svg = document.getElementById('bay');
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
+  const LY = [150, 250, 350];
+  const RX = [262, 402, 542, 682];
+  const JX = RX.map(x => x + 102);
+  const refs = { relays: [], sws: [[], [], []], flows: [], leakT: [[], [], []] };
+
+  function buildSvg() {
+    // supply, R17, A0 bus
+    el('text', { x: 150, y: 22, 'text-anchor': 'middle', class: 'lbl' }).textContent = '+5 V';
+    el('circle', { cx: 150, cy: 32, r: 4, fill: 'var(--crit)' });
+    el('line', { x1: 150, y1: 36, x2: 150, y2: 48, class: 'wire' });
+    el('rect', { x: 140, y: 48, width: 20, height: 52, class: 'res', stroke: 'var(--accent)' });
+    el('text', { x: 168, y: 70, class: 'lbl' }).textContent = 'R17';
+    el('text', { x: 168, y: 84, class: 'lbl' }).textContent = '1 kΩ';
+    el('line', { x1: 150, y1: 100, x2: 150, y2: LY[2], class: 'wire' });
+    el('circle', { cx: 150, cy: 118, r: 4, fill: 'var(--wire)' });
+    el('line', { x1: 112, y1: 118, x2: 150, y2: 118, class: 'wire' });
+    el('rect', { x: 12, y: 96, width: 100, height: 54, rx: 6, fill: 'var(--panel-2)', stroke: 'var(--accent)', 'stroke-width': 1.5 });
+    el('text', { x: 62, y: 118, 'text-anchor': 'middle', style: 'font-size:11px;font-weight:600' }).textContent = 'Arduino Uno';
+    el('text', { x: 62, y: 136, 'text-anchor': 'middle', class: 'lbl' }).textContent = 'A0 ←';
+    refs.a0 = el('text', { x: 62, y: 176, 'text-anchor': 'middle', style: 'font-size:12px;font-weight:600' });
+    refs.a0.textContent = 'A0 = 1023';
+
+    LINES.forEach((L, l) => {
+      const y = LY[l];
+      // flow overlay (drawn under parts)
+      refs.flows[l] = el('polyline', { class: 'flow', points: '' });
+      // relay
+      const g = el('g', { class: 'relay' });
+      el('line', { x1: 150, y1: y, x2: 172, y2: y, class: 'wire' }, g);
+      el('circle', { cx: 172, cy: y, r: 3, fill: 'var(--wire)' }, g);
+      const blade = el('line', { x1: 172, y1: y, x2: 214, y2: y, class: 'blade' }, g);
+      blade.style.transformOrigin = '172px ' + y + 'px';
+      el('circle', { cx: 218, cy: y, r: 3, fill: 'var(--wire)' }, g);
+      const rt = el('text', { x: 194, y: y + 18, 'text-anchor': 'middle', class: 'relay-t' }, g);
+      rt.textContent = L.relay;
+      refs.relays[l] = { g, blade };
+      // line
+      el('line', { x1: 218, y1: y, x2: 840, y2: y, class: 'wire', style: 'stroke:' + L.color + ';stroke-width:3' });
+      const nm = el('text', { x: 848, y: y + 4, style: 'font-size:12px;font-weight:600;fill:' + L.ink });
+      nm.textContent = L.name;
+      el('text', { x: 848, y: y + 18, class: 'lbl' }).textContent = 'line';
+      // resistors
+      RX.forEach((x) => {
+        el('rect', { x, y: y - 11, width: 64, height: 22, rx: 2, class: 'res', stroke: L.color });
+        el('text', { x: x + 32, y: y + 4, class: 'res-t' }).textContent = '100 Ω';
+      });
+      // junctions + fault switches
+      JX.forEach((x, j) => {
+        el('text', { x, y: y - 18, 'text-anchor': 'middle', class: 'lbl' }).textContent = KM[j] + ' km';
+        el('circle', { cx: x, cy: y, r: 3.5, fill: 'var(--wire)' });
+        const sw = el('g', { class: 'sw', role: 'button', tabindex: '0', 'aria-label': L.name + ' line fault switch at ' + KM[j] + ' km' });
+        el('rect', { x: x - 20, y: y + 4, width: 40, height: 62, rx: 6, class: 'hit' }, sw);
+        el('line', { x1: x, y1: y, x2: x, y2: y + 18, class: 'wire' }, sw);
+        el('circle', { cx: x, cy: y + 18, r: 2.5, fill: 'var(--wire)' }, sw);
+        const b = el('line', { x1: x, y1: y + 18, x2: x, y2: y + 42, class: 'blade' }, sw);
+        b.style.transformOrigin = x + 'px ' + (y + 18) + 'px';
+        b.style.transform = 'rotate(-35deg)';
+        el('line', { x1: x + 6, y1: y + 20, x2: x + 6, y2: y + 42, class: 'leak' }, sw);
+        el('circle', { cx: x, cy: y + 44, r: 2.5, fill: 'var(--wire)' }, sw);
+        el('line', { x1: x, y1: y + 44, x2: x, y2: y + 52, class: 'wire' }, sw);
+        el('line', { x1: x - 9, y1: y + 52, x2: x + 9, y2: y + 52, class: 'wire' }, sw);
+        el('line', { x1: x - 5, y1: y + 56, x2: x + 5, y2: y + 56, class: 'wire' }, sw);
+        el('line', { x1: x - 2, y1: y + 60, x2: x + 2, y2: y + 60, class: 'wire' }, sw);
+        const lt = el('text', { x: x + 12, y: y + 38, class: 'lbl', style: 'fill:var(--warn)' }, sw);
+        refs.leakT[l][j] = lt;
+        sw.addEventListener('click', () => toggleFault(l, j));
+        sw.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFault(l, j); } });
+        refs.sws[l][j] = { g: sw, blade: b };
+      });
+    });
+  }
+
+  // ---------- fault grid ----------
+  const grid = document.getElementById('faultGrid');
+  const fbtns = [[], [], []];
+  LINES.forEach((L, l) => {
+    const lab = document.createElement('span');
+    lab.className = 'row-l'; lab.textContent = L.name; lab.style.color = L.ink;
+    grid.appendChild(lab);
+    KM.forEach((k, j) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'fbtn'; b.id = 'f' + L.tag + k;
+      b.setAttribute('aria-pressed', 'false');
+      b.setAttribute('aria-label', L.name + ' fault at ' + k + ' km');
+      b.textContent = 'open';
+      b.addEventListener('click', () => toggleFault(l, j));
+      grid.appendChild(b); fbtns[l][j] = b;
+    });
+  });
+
+  function toggleFault(l, j) {
+    if (S.ageing && S.ageing.l === l && S.ageing.j === j) stopAgeing();
+    S.shunt[l][j] = S.shunt[l][j] === 0 ? INF : 0;
+    renderSwitches();
+  }
+
+  // ---------- ageing ----------
+  function startAgeing(l, j) {
+    stopAgeing();
+    S.shunt[l][j] = 20000;
+    S.ageing = { l, j, t0: performance.now() };
+    S.hist[l] = []; S.aiWarnAt[l] = null; S.thrAt[l] = null;
+    document.getElementById('leadTime').hidden = true;
+    document.getElementById('ageBtn').textContent = 'Stop ageing';
+    renderSwitches();
+  }
+  function stopAgeing() {
+    if (!S.ageing) return;
+    const { l, j } = S.ageing;
+    if (S.shunt[l][j] !== 0) S.shunt[l][j] = INF;
+    S.ageing = null;
+    document.getElementById('ageBtn').textContent = 'Start ageing';
+    renderSwitches();
+  }
+  function tickAgeing() {
+    if (!S.ageing) return;
+    const { l, j, t0 } = S.ageing;
+    const t = (performance.now() - t0) / 1000;
+    const r = 20000 * Math.exp(-t / 3.1);
+    if (r < 5) {
+      S.shunt[l][j] = 0; S.ageing = null;
+      document.getElementById('ageBtn').textContent = 'Start ageing';
+    } else S.shunt[l][j] = r;
+    renderSwitches();
+  }
+
+  const fmtOhm = (r) => r >= 1000 ? (r / 1000).toFixed(r >= 10000 ? 0 : 1) + ' kΩ' : Math.round(r) + ' Ω';
+
+  function renderSwitches() {
+    for (let l = 0; l < 3; l++) for (let j = 0; j < 4; j++) {
+      const s = S.shunt[l][j], sw = refs.sws[l][j], b = fbtns[l][j];
+      const closed = s === 0, leaking = s !== 0 && s !== INF;
+      sw.g.classList.toggle('closed', closed);
+      sw.g.classList.toggle('leaking', leaking);
+      sw.blade.style.transform = closed ? 'rotate(0deg)' : 'rotate(-35deg)';
+      refs.leakT[l][j].textContent = leaking ? fmtOhm(s) : '';
+      b.setAttribute('aria-pressed', closed ? 'true' : 'false');
+      b.classList.toggle('ageing', leaking);
+      b.textContent = closed ? 'FAULT' : leaking ? fmtOhm(s) : 'open';
+    }
+  }
+
+  // ---------- scan loop (mirrors the Uno code: relay on, 0.5 s, measure) ----------
+  function scanStep() {
+    const l = S.current;
+    if (!S.relayOn) {
+      S.relayOn = true;
+    } else {
+      S.adc[l] = readAdc(l);
+      S.km[l] = thresholdKm(S.adc[l]);
+      S.measured[l] = true;
+      const now = performance.now();
+      S.hist[l].push({ t: now, r: rinFromAdc(S.adc[l]), adc: S.adc[l] });
+      if (S.hist[l].length > 30) S.hist[l].shift();
+      noteThreshold(l);
+      evaluateAi(l);
+      sendIot(l);
+      S.relayOn = false;
+      S.current = (l + 1) % 3;
+    }
+    render();
+  }
+  function rinFromAdc(adc) { const v = adc / 1023 * 5; return v >= 4.995 ? INF : R17 * v / (5 - v); }
+
+  // ---------- IoT ----------
+  function noteThreshold(l) {
+    if (S.km[l] !== 0 && S.aiWarnAt[l] !== null && S.thrAt[l] === null) S.thrAt[l] = performance.now();
+  }
+  function sendIot(l) {
+    if (!S.bridge) return;
+    S.lastSync = new Date();
+    if (S.km[l] !== S.sentKm[l]) {
+      if (S.km[l] !== 0) log('iot', LINES[l].name + ' line: fault at ' + S.km[l] + ' km');
+      else if (S.sentKm[l] > 0) log('iot', LINES[l].name + ' line: back to normal');
+      S.sentKm[l] = S.km[l];
+    }
+  }
+
+  function evaluateAi(l) {
+    const c = classify(l);
+    const prev = S.aiState[l];
+    if (c.kind === 'warn' && prev !== 'warn' && S.aiWarnAt[l] === null) {
+      S.aiWarnAt[l] = performance.now();
+      log('ai', 'Early warning: ' + LINES[l].name + ' line insulation weakening (leak path ≈ ' + fmtOhm(c.leak) + ')');
+    }
+    if (c.kind === 'fault' && prev !== 'fault') {
+      if (S.aiWarnAt[l] !== null) {
+        const now = performance.now();
+        const lead = (now - S.aiWarnAt[l]) / 1000;
+        const thr = S.thrAt[l] !== null ? (now - S.thrAt[l]) / 1000 : 0;
+        const lt = document.getElementById('leadTime');
+        lt.textContent = 'Warning time before the hard fault on the ' + LINES[l].name + ' line: AI ≈ ' + lead.toFixed(0) + ' days · fixed thresholds ≈ ' + thr.toFixed(0) + ' days (and with a wrong distance).';
+        S.thrAt[l] = null;
+        lt.hidden = false;
+        log('ai', 'Hard fault confirmed on ' + LINES[l].name + ' line at ' + c.km + ' km, ' + lead.toFixed(0) + ' days after the early warning');
+        S.aiWarnAt[l] = null;
+      }
+    }
+    if (c.kind === 'ok') { S.aiWarnAt[l] = null; S.thrAt[l] = null; }
+    S.aiState[l] = c.kind;
+  }
+
+  // ---------- feed ----------
+  const feed = document.getElementById('feed');
+  function log(kind, text) {
+    const empty = feed.querySelector('.empty'); if (empty) empty.remove();
+    const li = document.createElement('li');
+    const t = document.createElement('time'); t.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const tag = document.createElement('span'); tag.className = 'tag ' + kind; tag.textContent = kind === 'ai' ? 'AI' : 'IoT';
+    const m = document.createElement('span'); m.textContent = text;
+    li.append(t, tag, m); feed.prepend(li);
+    while (feed.children.length > 30) feed.lastChild.remove();
+  }
+
+  // ---------- rendering ----------
+  const lcd = document.getElementById('lcd');
+  const leds = [document.getElementById('ledR'), document.getElementById('ledY'), document.getElementById('ledB')];
+  const iotLines = document.getElementById('iotLines');
+  const aiCards = document.getElementById('aiCards');
+  const iotRows = LINES.map((L) => {
+    const row = document.createElement('div'); row.className = 'lrow';
+    row.innerHTML = '<span class="stripe" style="background:' + L.color + '"></span><div><div class="nm">' + L.name + ' line</div><div class="sub"></div></div><span class="state ok">No fault</span>';
+    iotLines.appendChild(row);
+    return { sub: row.querySelector('.sub'), st: row.querySelector('.state') };
+  });
+  const aiRows = LINES.map((L) => {
+    const c = document.createElement('div'); c.className = 'ai-card';
+    c.innerHTML = '<div class="t"><b style="color:' + L.ink + '">' + L.name + '</b><span class="mono" style="font-size:12px"></span></div><div class="msg"></div><div class="conf"><i></i></div>';
+    aiCards.appendChild(c);
+    return { c, meta: c.querySelector('.t span'), msg: c.querySelector('.msg'), bar: c.querySelector('.conf i') };
+  });
+
+  function lcdPart(l) { return S.km[l] === 0 ? LINES[l].tag + ':NF' : LINES[l].tag + ':' + S.km[l] + 'KM'; }
+  const pad = (s, n) => (s + '                ').slice(0, n);
+
+  function render() {
+    const l = S.current;
+    // relays + flows
+    for (let i = 0; i < 3; i++) {
+      const on = S.relayOn && i === l;
+      refs.relays[i].g.classList.toggle('on', on);
+      refs.relays[i].blade.style.transform = on ? 'rotate(0deg)' : 'rotate(-28deg)';
+      leds[i].classList.toggle('on', on);
+      const f = refs.flows[i];
+      let jf = -1;
+      for (let j = 0; j < 4; j++) if (S.shunt[i][j] !== INF) { jf = j; break; }
+      if (on && jf >= 0) {
+        const y = LY[i], x = JX[jf];
+        f.setAttribute('points', '150,32 150,' + y + ' ' + x + ',' + y + ' ' + x + ',' + (y + 52));
+        f.classList.add('on');
+      } else f.classList.remove('on');
+    }
+    // LCD
+    lcd.textContent = pad(pad(lcdPart(0), 7) + ' ' + lcdPart(1), 16) + '\n' + pad(pad(lcdPart(2), 7) + ' ' + (S.bridge ? 'IoT:ON' : 'IoT:--'), 16);
+    // readouts
+    const shown = S.relayOn ? l : (l + 2) % 3;
+    const adc = S.adc[shown], v = adc / 1023 * 5;
+    document.getElementById('roLine').textContent = LINES[l].tag + (S.relayOn ? ' (relay on)' : '');
+    document.getElementById('roAdc').textContent = adc;
+    document.getElementById('roV').textContent = v.toFixed(2) + ' V';
+    refs.a0.textContent = 'A0 = ' + adc;
+    document.getElementById('scanText').textContent = 'Scanning ' + LINES[l].tag + ' line';
+    // buzzer
+    const any = S.km.some(k => k > 0);
+    const buzzOn = any && Math.floor(performance.now() / 500) % 2 === 0;
+    document.getElementById('buzz').classList.toggle('on', buzzOn);
+    // IoT dashboard
+    for (let i = 0; i < 3; i++) {
+      const r = iotRows[i];
+      const km = S.bridge ? S.km[i] : S.sentKm[i];
+      if (!S.bridge) { r.st.className = 'state off'; r.st.textContent = 'Offline'; }
+      else if (km > 0) { r.st.className = 'state crit'; r.st.textContent = 'Fault at ' + km + ' km'; }
+      else { r.st.className = 'state ok'; r.st.textContent = 'No fault'; }
+      r.sub.textContent = 'A0 ' + S.adc[i] + ' · ' + (S.adc[i] / 1023 * 5).toFixed(2) + ' V';
+    }
+    if (S.bridge) {
+      document.getElementById('gArc').setAttribute('stroke-dasharray', (v / 5 * 100).toFixed(1) + ' 100');
+      document.getElementById('gVal').textContent = v.toFixed(2) + ' V';
+      const k = S.km[shown];
+      document.getElementById('gLine').textContent = LINES[shown].name + ' line · ' + (k ? 'fault at ' + k + ' km' : 'no fault');
+      document.getElementById('offNote').textContent = 'Synced ' + (S.lastSync ? S.lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'just now') + ' through the Uno USB cable and the laptop bridge.';
+    } else {
+      document.getElementById('offNote').textContent = 'Bridge offline. The Uno keeps detecting faults on the LCD; the dashboard shows the last synced data.';
+    }
+    // AI cards
+    for (let i = 0; i < 3; i++) {
+      const c = classify(i), a = aiRows[i];
+      a.c.className = 'ai-card' + (c.kind === 'warn' || c.kind === 'hires' ? ' warn' : c.kind === 'fault' ? ' crit' : '');
+      if (c.kind === 'ok') { a.msg.textContent = 'Healthy. Reading matches a fault-free cable.'; a.meta.textContent = 'confidence 99%'; a.bar.style.width = '99%'; }
+      else if (c.kind === 'warn') {
+        const d = predictDays(i);
+        a.msg.textContent = 'Early warning: insulation leak ≈ ' + fmtOhm(c.leak) + '. The threshold logic still reads "NF".' + (d !== null ? ' Predicted hard fault in ≈ ' + Math.max(1, Math.round(d)) + ' days.' : '');
+        a.meta.textContent = 'trend watch'; a.bar.style.width = Math.min(100, Math.max(8, (1000 - S.adc[i]) / 3.5)) + '%';
+      } else if (c.kind === 'fault') { a.msg.textContent = 'Hard fault at ' + c.km + ' km.'; a.meta.textContent = 'confidence ' + Math.round(c.conf * 100) + '%'; a.bar.style.width = Math.round(c.conf * 100) + '%'; }
+      else { a.msg.textContent = (c.moving ? 'Developing fault: reading is still falling (path ≈ ' + fmtOhm(c.path) + '). ' : 'High-resistance fault (path ≈ ' + fmtOhm(c.path) + '). ') + 'The threshold distance shown on the LCD may be wrong.'; a.meta.textContent = 'confidence ' + Math.round(c.conf * 100) + '%'; a.bar.style.width = Math.max(6, Math.round(c.conf * 100)) + '%'; }
+    }
+  }
+
+  // ---------- buzzer sound ----------
+  let actx = null, lastBeep = -1;
+  function beepTick() {
+    if (!S.sound || !actx) return;
+    const any = S.km.some(k => k > 0);
+    const phase = Math.floor(performance.now() / 500);
+    if (any && phase % 2 === 0 && phase !== lastBeep) {
+      lastBeep = phase;
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = 2300; o.type = 'square'; g.gain.value = 0.03;
+      o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.12);
+    }
+  }
+  document.getElementById('soundBtn').addEventListener('click', (e) => {
+    S.sound = !S.sound;
+    if (S.sound && !actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (err) { S.sound = false; } }
+    e.currentTarget.setAttribute('aria-pressed', String(S.sound));
+    e.currentTarget.textContent = 'Buzzer sound: ' + (S.sound ? 'on' : 'off');
+  });
+
+  // ---------- controls ----------
+  document.getElementById('bridge').addEventListener('click', (e) => {
+    S.bridge = !S.bridge;
+    e.currentTarget.setAttribute('aria-pressed', String(S.bridge));
+    document.getElementById('bridgeTxt').textContent = S.bridge ? 'USB bridge online' : 'USB bridge offline';
+    if (S.bridge) { S.sentKm = [-1, -1, -1]; log('iot', 'Bridge reconnected, dashboard resynced'); }
+    render();
+  });
+  function clearAll() { stopAgeing(); S.shunt = [[INF, INF, INF, INF], [INF, INF, INF, INF], [INF, INF, INF, INF]]; S.hist = [[], [], []]; document.getElementById('leadTime').hidden = true; renderSwitches(); }
+  document.getElementById('scClear').addEventListener('click', clearAll);
+  document.getElementById('scY4').addEventListener('click', () => { clearAll(); S.shunt[1][1] = 0; renderSwitches(); });
+  document.getElementById('scTwo').addEventListener('click', () => { clearAll(); S.shunt[0][0] = 0; S.shunt[2][3] = 0; renderSwitches(); });
+  document.getElementById('scAge').addEventListener('click', () => { clearAll(); document.getElementById('ageLine').value = '2'; document.getElementById('ageKm').value = '2'; startAgeing(2, 2); });
+  document.getElementById('ageBtn').addEventListener('click', () => {
+    if (S.ageing) { stopAgeing(); return; }
+    const l = +document.getElementById('ageLine').value, j = +document.getElementById('ageKm').value;
+    S.shunt[l][j] = INF; startAgeing(l, j);
+  });
+
+  // ---------- start: Yellow fault at 4 km, all lines measured once ----------
+  buildSvg();
+  S.shunt[1][1] = 0;
+  for (let i = 0; i < 3; i++) { S.adc[i] = readAdc(i); S.km[i] = thresholdKm(S.adc[i]); S.aiState[i] = classify(i).kind; }
+  S.sentKm = S.km.slice(); S.lastSync = new Date();
+  log('iot', 'Yellow line: fault at 4 km');
+  renderSwitches(); render();
+  setInterval(scanStep, 500);
+  setInterval(() => { tickAgeing(); beepTick(); }, 100);
+  setInterval(() => { const any = S.km.some(k => k > 0); document.getElementById('buzz').classList.toggle('on', any && Math.floor(performance.now() / 500) % 2 === 0); }, 250);
+})();
+</script>
+</body>
+</html>
